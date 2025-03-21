@@ -14,6 +14,7 @@ def pm_forces(positions,
               delta=None,
               r_split=0,
               paint_absolute_pos=True,
+              weights=None,
               halo_size=0,
               sharding=None):
     """
@@ -25,22 +26,35 @@ def pm_forces(positions,
         mesh_shape = delta.shape
 
     if paint_absolute_pos:
-        paint_fn = lambda pos: cic_paint(jnp.zeros(shape=mesh_shape,
+        paint_fn = lambda pos, weight=None: cic_paint(
+                                         jnp.zeros(shape=mesh_shape,
                                                    device=sharding),
                                          pos,
+                                         weight=weight,
                                          halo_size=halo_size,
                                          sharding=sharding)
         read_fn = lambda grid_mesh, pos: cic_read(
             grid_mesh, pos, halo_size=halo_size, sharding=sharding)
     else:
-        paint_fn = lambda disp: cic_paint_dx(
-            disp, halo_size=halo_size, sharding=sharding)
+        paint_fn = lambda disp, weight=None: cic_paint_dx(
+            disp, weight=weight, halo_size=halo_size, sharding=sharding)
         read_fn = lambda grid_mesh, disp: cic_read_dx(
             grid_mesh, disp, halo_size=halo_size, sharding=sharding)
 
+    is_multi_species = (isinstance(positions, (list, tuple))
+                        or (isinstance(positions, jnp.ndarray) and positions.ndim == 3))
+    if is_multi_species:
+        if weights is None:
+            weights = [None,] * len(positions)
+        assert len(positions) == len(weights)            
+
     if delta is None:
-        field = paint_fn(positions)
-        delta_k = fft3d(field)
+        # Check if there are multiple species
+        if is_multi_species:
+            delta = sum([paint_fn(pos, weight=w) for pos, w in zip(positions, weights)])
+        else:
+            delta = paint_fn(positions)
+        delta_k = fft3d(delta)
     elif jnp.isrealobj(delta):
         delta_k = fft3d(delta)
     else:
@@ -51,9 +65,15 @@ def pm_forces(positions,
     pot_k = delta_k * invlaplace_kernel(kvec) * longrange_kernel(
         kvec, r_split=r_split)
     # Computes gravitational forces
-    forces = jnp.stack([
-        read_fn(ifft3d(-gradient_kernel(kvec, i) * pot_k),positions
-        ) for i in range(3)], axis=-1) # yapf: disable
+    if is_multi_species:
+        forces = [jnp.stack([
+            read_fn(ifft3d(-gradient_kernel(kvec, i) * pot_k), pos
+            ) for i in range(3)], axis=-1)
+            for pos in positions]
+    else:
+        forces = jnp.stack([
+            read_fn(ifft3d(-gradient_kernel(kvec, i) * pot_k), positions
+            ) for i in range(3)], axis=-1) # yapf: disable
 
     return forces
 
