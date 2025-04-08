@@ -49,6 +49,8 @@ def _cic_paint_impl(grid_mesh, positions, weight=None):
 
 @partial(jax.jit, static_argnums=(3, 4))
 def cic_paint(grid_mesh, positions, weight=None, halo_size=0, sharding=None):
+    if sharding is None:
+        return _cic_paint_impl(grid_mesh, positions, weight)
 
     positions = positions.reshape((*grid_mesh.shape, 3))
 
@@ -102,6 +104,8 @@ def _cic_read_impl(grid_mesh, positions):
 
 @partial(jax.jit, static_argnums=(2, 3))
 def cic_read(grid_mesh, positions, halo_size=0, sharding=None):
+    if sharding is None:
+        return _cic_read_impl(grid_mesh, positions)
 
     original_shape = positions.shape
     positions = positions.reshape((*grid_mesh.shape, 3))
