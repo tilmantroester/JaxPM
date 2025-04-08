@@ -15,6 +15,7 @@ def pm_forces(positions,
               r_split=0,
               paint_absolute_pos=True,
               weights=None,
+              return_potential=False,
               halo_size=0,
               sharding=None):
     """
@@ -70,11 +71,22 @@ def pm_forces(positions,
             read_fn(ifft3d(-gradient_kernel(kvec, i) * pot_k), pos
             ) for i in range(3)], axis=-1)
             for pos in positions]
+        if return_potential:
+            pot = [jnp.stack([
+                read_fn(ifft3d(pot_k), pos
+                ) for i in range(3)], axis=-1)
+                for pos in positions]
     else:
         forces = jnp.stack([
             read_fn(ifft3d(-gradient_kernel(kvec, i) * pot_k), positions
             ) for i in range(3)], axis=-1) # yapf: disable
+        if return_potential:
+            pot = jnp.stack([
+                read_fn(ifft3d(pot_k), positions
+                ) for i in range(3)], axis=-1) # yapf: disable
 
+    if return_potential:
+        return forces, pot
     return forces
 
 
