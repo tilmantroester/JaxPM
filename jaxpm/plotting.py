@@ -44,6 +44,7 @@ def plot_fields(fields_dict, sum_over=None):
 def plot_fields_single_projection(fields_dict,
                                   sum_over=None,
                                   project_axis=0,
+                                  nb_cols=4,
                                   vmin=None,
                                   vmax=None,
                                   colorbar=False):
@@ -56,8 +57,10 @@ def plot_fields_single_projection(fields_dict,
     - sum_over: number of slices to sum along the projection axis (default: fields[0].shape[0] // 8)
     """
     sum_over = sum_over or list(fields_dict.values())[0].shape[0] // 8
+    if isinstance(sum_over, int):
+        sum_over = [None, sum_over]
+
     nb_fields = len(fields_dict)
-    nb_cols = 4  # Set number of images per row
     nb_rows = (nb_fields + nb_cols - 1) // nb_cols  # Calculate required rows
 
     fig, axes = plt.subplots(nb_rows,
@@ -70,7 +73,7 @@ def plot_fields_single_projection(fields_dict,
 
         # Define the slice for the 0-axis projection
         slicing = [slice(None)] * field.ndim
-        slicing[project_axis] = slice(None, sum_over)
+        slicing[project_axis] = slice(*sum_over)
         slicing = tuple(slicing)
 
         # Sum projection over axis 0 and plot
@@ -82,7 +85,7 @@ def plot_fields_single_projection(fields_dict,
                              vmax=vmax)
         axes[row, col].set_xlabel('Mpc/h')
         axes[row, col].set_ylabel('Mpc/h')
-        axes[row, col].set_title(f"{name} projection 0")
+        axes[row, col].set_title(f"{name}")
         if colorbar:
             fig.colorbar(a, ax=axes[row, col], shrink=0.7)
 
