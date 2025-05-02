@@ -17,7 +17,9 @@ def pm_forces(positions,
               weights=None,
               return_potential=False,
               halo_size=0,
-              sharding=None):
+              sharding=None,
+              inv_laplace_kernel_order=0,
+              gradient_kernel_order=1):
     """
     Computes gravitational forces on particles using a PM scheme
     """
@@ -63,27 +65,22 @@ def pm_forces(positions,
 
     kvec = fftk(delta_k)
     # Computes gravitational potential
-    pot_k = delta_k * invlaplace_kernel(kvec) * longrange_kernel(
+    pot_k = delta_k * invlaplace_kernel(kvec, fd=inv_laplace_kernel_order) * longrange_kernel(
         kvec, r_split=r_split)
     # Computes gravitational forces
     if is_multi_species:
         forces = [jnp.stack([
-            read_fn(ifft3d(-gradient_kernel(kvec, i) * pot_k), pos
+            read_fn(ifft3d(-gradient_kernel(kvec, i, order=gradient_kernel_order) * pot_k), pos
             ) for i in range(3)], axis=-1)
             for pos in positions]
         if return_potential:
-            pot = [jnp.stack([
-                read_fn(ifft3d(pot_k), pos
-                ) for i in range(3)], axis=-1)
-                for pos in positions]
+            pot = [read_fn(ifft3d(pot_k), pos) for pos in positions]
     else:
         forces = jnp.stack([
-            read_fn(ifft3d(-gradient_kernel(kvec, i) * pot_k), positions
+            read_fn(ifft3d(-gradient_kernel(kvec, i, order=gradient_kernel_order) * pot_k), positions
             ) for i in range(3)], axis=-1) # yapf: disable
         if return_potential:
-            pot = jnp.stack([
-                read_fn(ifft3d(pot_k), positions
-                ) for i in range(3)], axis=-1) # yapf: disable
+            pot = read_fn(ifft3d(pot_k), positions)
 
     if return_potential:
         return forces, pot
