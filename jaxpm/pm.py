@@ -1,12 +1,18 @@
 import jax.numpy as jnp
 import jax_cosmo as jc
 
-from jaxpm.distributed import fft3d, ifft3d, normal_field
+# from jaxpm.distributed import fft3d, ifft3d, normal_field
+from jaxpm.distributed import normal_field
+
 from jaxpm.growth import (dGf2a, dGfa, growth_factor, growth_factor_second,
                           growth_rate, growth_rate_second)
 from jaxpm.kernels import (PGD_kernel, fftk, gradient_kernel,
                            invlaplace_kernel, longrange_kernel)
 from jaxpm.painting import cic_paint, cic_paint_dx, cic_read, cic_read_dx
+
+
+fft3d = lambda x: jnp.fft.fftn(x, norm="backward").transpose(1, 2, 0)
+ifft3d = lambda x: jnp.fft.ifftn(x, norm="backward").real.transpose(2, 0, 1)
 
 
 def pm_forces(positions,
@@ -155,12 +161,13 @@ def lpt(cosmo,
     return dx, p, f
 
 
-def linear_field(mesh_shape, box_size, pk, seed, sharding=None):
+def linear_field(mesh_shape, box_size, pk, seed=None, field=None, sharding=None):
     """
     Generate initial conditions.
     """
-    # Initialize a random field with one slice on each gpu
-    field = normal_field(mesh_shape, seed=seed, sharding=sharding)
+    if field is None:
+        # Initialize a random field with one slice on each gpu
+        field = normal_field(mesh_shape, seed=seed, sharding=sharding)
     field = fft3d(field)
     kvec = fftk(field)
     kmesh = sum((kk / box_size[i] * mesh_shape[i])**2
